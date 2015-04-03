@@ -85,7 +85,6 @@ class ModerationEditHooks {
 		else
 		{
 			$section = $request->getVal('wpSection', $request->getVal('section'));
-
 			if($section)
 			{
 				#
@@ -94,27 +93,28 @@ class ModerationEditHooks {
 				# then only modification to the last one will be saved,
 				# because $content is [old content] PLUS [modified section from the edit].
 				#
-				# Difference between $index and $section:
-				# $index: section number in $content. $index can't be "new". If $section was "new", then we need to recalculate $index.
-				# $section: section number in $saved_content. $section can be "new". Used when calling replaceSection().
+
+				# Unfortunately this can get so complicated
+				# (if, for example, user removes a section header),
+				# that we have to ignore $content and use $request.
+
+				# NOTE: this design is imperfect, because
+				# doEditContent() can be caused by extensions, etc.,
+				# at which point wpTextbox1/text might be missing.
+				# However, presence of wpSection/section probably
+				# filters out such cases.
+
+				# FIXME: appendtext/prependtext from API are NOT supported.
+				# This change can't be merged into 'master' until this is fixed.
 				#
-				$index = $section;
-				if($section == 'new')
-				{
-					#
-					# Parser doesn't allow to get the LAST section directly.
-					# We have to get the entire TOC - just for a single index.
-					#
-					$sections = $content->getParserOutput($title, null, null, false)->getSections();
-					$new_section_content = end($sections);
-					$index = $new_section_content['index'];
-				}
+				$text = $request->getVal('wpTextbox1', $request->getVal('text'));
+				$text = trim($text);
 
-				# $new_section_content is exactly what the user just wrote in the edit form (one section only).
-				$new_section_content = $content->getSection($index);
-				$saved_content = ContentHandler::makeContent($row->text, null, $content->getModel());
+				$model = $content->getModel();
+				$saved_content = ContentHandler::makeContent($row->text, null, $model);
+				$new_section_content = ContentHandler::makeContent($text, null, $model);
+
 				$new_content = $saved_content->replaceSection($section, $new_section_content, '');
-
 				$fields['mod_text'] = $new_content->preSaveTransform($title, $user, $popts)->getNativeData();
 			}
 
